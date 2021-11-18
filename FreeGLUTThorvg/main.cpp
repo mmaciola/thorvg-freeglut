@@ -17,14 +17,19 @@ using namespace tvg;
 
 #define WIDTH 400
 #define HEIGHT 400
+#define FPS 60
+#define INTERVAL (1000/FPS)
 
 GLubyte* PixelBuffer = new GLubyte[WIDTH * HEIGHT * 4];
 
+static CanvasEngine tvgEngine = CanvasEngine::Sw;
 static unique_ptr<SwCanvas> swCanvas;
+static bool needInvalidation = false;
+static int mousePosition[] = {0, 0};
+static unique_ptr<Shape> Rect = NULL;
 
 void createThorvgView() {
     // Initialize the engine
-    CanvasEngine tvgEngine = CanvasEngine::Sw;
     auto threads = thread::hardware_concurrency();
     if (threads > 0) --threads;
     
@@ -49,14 +54,19 @@ void createThorvgView() {
     picture->size(WIDTH, HEIGHT);
     swCanvas->push(move(picture));
     
-    // Draw
-    if (swCanvas->draw() == Result::Success) {
-        swCanvas->sync();
-    }
+    // Create rect
+    Rect = Shape::gen();
+    swCanvas->push(unique_ptr<Shape>(Rect.get()));
+    
+    // Draw, will be synced later
+    swCanvas->draw();
 }
 
 // Draw the buffer
 void display() {
+    // Sync thorvg drawing
+    swCanvas->sync();
+    
     // Clear the buffer (not needed as buffer is full window sized)
     glClear(GL_COLOR_BUFFER_BIT);
     
@@ -71,8 +81,72 @@ void display() {
     glFlush();
 }
 
-// Initializes GLUT, the display mode, and main window; registers callbacks;
-// enters the main event loop.
+// Handle mouse events
+void mouse(int button, int state, int x, int y) {
+    // Handle only left mouse button
+    if (button == GLUT_LEFT_BUTTON) {
+        if (state == GLUT_DOWN) {
+            // Store begin mouse position
+            mousePosition[0] = x;
+            mousePosition[1] = y;
+            
+            // Reset rect shape
+            Rect->reset();
+            swCanvas->update(Rect.get());
+            
+            // Draw, will be synced later
+            swCanvas->draw();
+        }
+    }
+}
+void mouseMotion(int mx, int my) {
+    // Create cordinates
+    int coordinates[4];
+    if (mousePosition[0] <= mx) {
+        coordinates[0] = mousePosition[0];
+        coordinates[2] = mx - mousePosition[0];
+    } else {
+        coordinates[0] = mx;
+        coordinates[2] = mousePosition[0] - mx;
+    }
+    if (mousePosition[1] <= my) {
+        coordinates[1] = mousePosition[1];
+        coordinates[3] = my - mousePosition[1];
+    } else {
+        coordinates[1] = my;
+        coordinates[3] = mousePosition[1] - my;
+    }
+    
+    // Create rect shape
+    Rect->reset();
+    Rect->appendRect(coordinates[0], coordinates[1], coordinates[2], coordinates[3], 0, 0);
+    Rect->fill(0x00, 0xba, 0xcc, 0xa0);
+    swCanvas->update(Rect.get());
+    
+    // Draw, will be synced later
+    swCanvas->draw();
+    
+    // Call for invalidation
+    needInvalidation = true;
+}
+
+// Handle the timer event
+void timer(int value) {
+    // Invalidate if needed
+    if (needInvalidation)
+        glutPostRedisplay();
+    
+    // Call the function timer() after INTERVAL time
+    glutTimerFunc(INTERVAL, timer, value);
+}
+
+// Handle close event
+void close() {
+    swCanvas->clear(false);
+    Initializer::term(tvgEngine);
+}
+
+// Initializes GLUT, the display mode, and main window
 int main(int argc, char** argv) {
     // Use a single buffered window in RGB mode
     glutInit(&argc, argv);
@@ -88,6 +162,16 @@ int main(int argc, char** argv) {
 
     // Call the function display() on GLUT window repaint
     glutDisplayFunc(display);
+    
+    // Call the function mouse() on mouse button pressed and mouseMotion() on mouse move with pressed button
+    glutMouseFunc(mouse);
+    glutMotionFunc(mouseMotion);
+    
+    // Call the function timer() after INTERVAL time
+    glutTimerFunc(INTERVAL, timer, 0);
+    
+    // Set closing function
+    glutWMCloseFunc(close);
 
     // Start main loop
     glutMainLoop();

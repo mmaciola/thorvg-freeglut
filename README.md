@@ -1,6 +1,10 @@
 # thorvg-freeglut
 This is an example of using FreeGLUT with Thorvg. The example will load svg image and display it to the window.
 
+
+
+https://user-images.githubusercontent.com/71131832/142398895-39ca27c9-010a-4734-a3ed-c7546b6cdc36.mov
+
 <img width="428" alt="preview" src="https://user-images.githubusercontent.com/71131832/142219631-6e1aaad0-75be-4374-bcb2-905a6a10fe51.png">
 
 ## Installation

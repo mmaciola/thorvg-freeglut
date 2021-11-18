@@ -12,6 +12,14 @@
 #include <thorvg.h>
 #include <thread>
 
+// For benchmark
+#define BENCHMARK
+#ifdef BENCHMARK
+#include <chrono>
+#include <sys/sysinfo.h>
+#include <iostream>
+#endif
+
 using namespace std;
 using namespace tvg;
 
@@ -61,6 +69,10 @@ void createThorvgView() {
 
 // Draw the buffer
 void display() {
+#ifdef BENCHMARK
+    auto begin = chrono::steady_clock::now();
+#endif
+    
     // Sync thorvg drawing
     swCanvas->sync();
     
@@ -76,6 +88,19 @@ void display() {
     
     // Flush
     glFlush();
+    
+#ifdef BENCHMARK
+    auto end = chrono::steady_clock::now();
+    
+    struct sysinfo memInfo;
+    sysinfo (&memInfo);
+    long long virtualMemUsed = memInfo.totalram - memInfo.freeram;
+    virtualMemUsed += memInfo.totalswap - memInfo.freeswap;
+    virtualMemUsed *= memInfo.mem_unit;
+    
+    cout << "Time difference = " << chrono::duration_cast<chrono::microseconds>(end - begin).count() << "[µs], Memory used = " << virtualMemUsed << "[]" << endl;
+
+#endif
 }
 
 // Handle mouse events
@@ -132,8 +157,10 @@ void mouseMotion(int mx, int my) {
 // Handle the timer event
 void timer(int value) {
     // Invalidate if needed
-    if (needInvalidation)
+    if (needInvalidation) {
         glutPostRedisplay();
+        needInvalidation = false;
+    }
     
     // Call the function timer() after INTERVAL time
     glutTimerFunc(INTERVAL, timer, value);

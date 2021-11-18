@@ -26,7 +26,7 @@ static CanvasEngine tvgEngine = CanvasEngine::Sw;
 static unique_ptr<SwCanvas> swCanvas;
 static bool needInvalidation = false;
 static int mousePosition[] = {0, 0};
-static unique_ptr<Shape> Rect = NULL;
+static Shape* Rect = nullptr;
 
 void createThorvgView() {
     // Initialize the engine
@@ -49,14 +49,11 @@ void createThorvgView() {
     swCanvas->push(move(shape));
     
     // Push picture
-    /*auto picture = Picture::gen();
-    if (picture->load("tiger.svg") != Result::Success) return;
-    picture->size(WIDTH, HEIGHT);
-    swCanvas->push(move(picture));*/
-    
-    // Create rect
-    Rect = Shape::gen();
-    swCanvas->push(unique_ptr<Shape>(Rect.get()));
+    auto picture = Picture::gen();
+    if (picture->load("tiger.svg") == Result::Success) {
+        picture->size(WIDTH, HEIGHT);
+        swCanvas->push(move(picture));
+    }
     
     // Draw, will be synced later
     swCanvas->draw();
@@ -89,13 +86,9 @@ void mouse(int button, int state, int x, int y) {
             // Store begin mouse position
             mousePosition[0] = x;
             mousePosition[1] = y;
-            
-            // Reset rect shape
-            Rect->reset();
-            swCanvas->update(Rect.get());
-            
-            // Draw, will be synced later
-            swCanvas->draw();
+        } else {
+            // Reset rect
+            Rect = nullptr;
         }
     }
 }
@@ -118,10 +111,16 @@ void mouseMotion(int mx, int my) {
     }
     
     // Create rect shape
-    Rect->reset();
+    if (!Rect) {
+        Rect = Shape::gen().release();
+        swCanvas->push(unique_ptr<Shape>(Rect));
+    } else {
+        Rect->reset();
+    }
+    
     Rect->appendRect(coordinates[0], coordinates[1], coordinates[2], coordinates[3], 0, 0);
-    Rect->fill(0x00, 0xba, 0xcc, 0xa0);
-    swCanvas->update(Rect.get());
+    Rect->fill(0x00, 0xba, 0xcc, 0x70);
+    swCanvas->update(Rect);
     
     // Draw, will be synced later
     swCanvas->draw();

@@ -7,7 +7,7 @@
 #ifdef __APPLE_CC__
 #include <GLUT/glut.h>
 #else
-#include <GL/glut.h>
+#include <GL/freeglut.h>
 #endif
 #include <thorvg.h>
 #include <thread>
@@ -49,10 +49,10 @@ void createThorvgView() {
     swCanvas->push(move(shape));
     
     // Push picture
-    auto picture = Picture::gen();
-    if (picture->load("/Users/mtm/Development/samsung/thorvg-mm/src/examples/images/tiger.svg") != Result::Success) return;
+    /*auto picture = Picture::gen();
+    if (picture->load("tiger.svg") != Result::Success) return;
     picture->size(WIDTH, HEIGHT);
-    swCanvas->push(move(picture));
+    swCanvas->push(move(picture));*/
     
     // Create rect
     Rect = Shape::gen();

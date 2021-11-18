@@ -12,19 +12,23 @@
 #include <thorvg.h>
 #include <thread>
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <iostream>
+
 // For benchmark
 #define BENCHMARK
+
 #ifdef BENCHMARK
 #include <chrono>
-#include <sys/sysinfo.h>
-#include <iostream>
+#include "string.h"
 #endif
 
 using namespace std;
 using namespace tvg;
 
-#define WIDTH 400
-#define HEIGHT 400
+#define WIDTH 800
+#define HEIGHT 800
 #define FPS 60
 #define INTERVAL (1000/FPS)
 
@@ -36,11 +40,8 @@ static bool needInvalidation = false;
 static int mousePosition[] = {0, 0};
 static Shape* Rect = nullptr;
 
-void createThorvgView() {
+void createThorvgView(uint32_t threads) {
     // Initialize the engine
-    auto threads = thread::hardware_concurrency();
-    if (threads > 0) --threads;
-    
     if (Initializer::init(tvgEngine, threads) != Result::Success) {
         printf("Thorvg init failed: Engine is not supported\n");
         return;
@@ -67,6 +68,27 @@ void createThorvgView() {
     swCanvas->draw();
 }
 
+#ifdef BENCHMARK
+string getVmSizeValue() {
+    FILE* file = fopen("/proc/self/status", "r");
+    if (!file) return string("UNKNOWN");
+    char* result = nullptr;
+    char line[128];
+
+    while (fgets(line, 128, file) != NULL) {
+        if (strncmp(line, "VmSize:", 7) == 0) {
+            result = line + 7;
+            while (*result < '0' || *result > '9') result++;
+            char* p = strchr(result, 'B');
+            if (p) p[1] = '\0';
+            break;
+        }
+    }
+    fclose(file);
+    return string(result);
+}
+#endif
+
 // Draw the buffer
 void display() {
 #ifdef BENCHMARK
@@ -91,15 +113,8 @@ void display() {
     
 #ifdef BENCHMARK
     auto end = chrono::steady_clock::now();
-    
-    struct sysinfo memInfo;
-    sysinfo (&memInfo);
-    long long virtualMemUsed = memInfo.totalram - memInfo.freeram;
-    virtualMemUsed += memInfo.totalswap - memInfo.freeswap;
-    virtualMemUsed *= memInfo.mem_unit;
-    
-    cout << "Time difference = " << chrono::duration_cast<chrono::microseconds>(end - begin).count() << "[µs], Memory used = " << virtualMemUsed << "[]" << endl;
-
+    auto memory = getVmSizeValue();
+    cout << "Time difference = " << chrono::duration_cast<chrono::microseconds>(end - begin).count() << "[µs], Memory used = " << memory << endl;
 #endif
 }
 
@@ -184,7 +199,13 @@ int main(int argc, char** argv) {
     glutCreateWindow("FreeGLUT with Thorvg");
     
     // Create thorvg view
-    createThorvgView();
+    auto threads = thread::hardware_concurrency();
+    if (threads > 0) --threads;
+    if (argc >= 2) {
+        threads = atoi(argv[1]);
+    }
+    cout << "Using " << threads << " threads" << endl;
+    createThorvgView(threads);
 
     // Call the function display() on GLUT window repaint
     glutDisplayFunc(display);

@@ -15,9 +15,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
+#include <vector>
 
 // For benchmark
-#define BENCHMARK
+//#define BENCHMARK
 
 #ifdef BENCHMARK
 #include <chrono>
@@ -37,8 +38,7 @@ GLubyte* PixelBuffer = new GLubyte[WIDTH * HEIGHT * 4];
 static CanvasEngine tvgEngine = CanvasEngine::Sw;
 static unique_ptr<SwCanvas> swCanvas;
 static bool needInvalidation = false;
-static int mousePosition[] = {0, 0};
-static Shape* Rect = nullptr;
+static Shape* PathShape = nullptr;
 
 void createThorvgView(uint32_t threads) {
     // Initialize the engine
@@ -124,43 +124,21 @@ void mouse(int button, int state, int x, int y) {
     if (button == GLUT_LEFT_BUTTON) {
         if (state == GLUT_DOWN) {
             // Store begin mouse position
-            mousePosition[0] = x;
-            mousePosition[1] = y;
+            PathShape = Shape::gen().release();
+            swCanvas->push(unique_ptr<Shape>(PathShape));
+            PathShape->moveTo(x, y);
+            PathShape->stroke(255, 0, 0, 255);
+            PathShape->stroke(4);
         } else {
             // Reset rect
-            Rect = nullptr;
+            PathShape = nullptr;
         }
     }
 }
 void mouseMotion(int mx, int my) {
-    // Create cordinates
-    int coordinates[4];
-    if (mousePosition[0] <= mx) {
-        coordinates[0] = mousePosition[0];
-        coordinates[2] = mx - mousePosition[0];
-    } else {
-        coordinates[0] = mx;
-        coordinates[2] = mousePosition[0] - mx;
-    }
-    if (mousePosition[1] <= my) {
-        coordinates[1] = mousePosition[1];
-        coordinates[3] = my - mousePosition[1];
-    } else {
-        coordinates[1] = my;
-        coordinates[3] = mousePosition[1] - my;
-    }
-    
-    // Create rect shape
-    if (!Rect) {
-        Rect = Shape::gen().release();
-        swCanvas->push(unique_ptr<Shape>(Rect));
-    } else {
-        Rect->reset();
-    }
-    
-    Rect->appendRect(coordinates[0], coordinates[1], coordinates[2], coordinates[3], 0, 0);
-    Rect->fill(0x00, 0xba, 0xcc, 0x70);
-    swCanvas->update(Rect);
+    // Draw line
+    PathShape->lineTo(mx, my);
+    swCanvas->update(PathShape);
     
     // Draw, will be synced later
     swCanvas->draw();

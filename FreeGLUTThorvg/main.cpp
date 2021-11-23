@@ -18,7 +18,7 @@
 #include <vector>
 
 // For benchmark
-//#define BENCHMARK
+#define BENCHMARK
 
 #ifdef BENCHMARK
 #include <chrono>
@@ -32,6 +32,7 @@ using namespace tvg;
 #define HEIGHT 800
 #define FPS 60
 #define INTERVAL (1000/FPS)
+#define MAX_SINGLE_PATH_SHAPE_COUNT 512
 
 GLubyte* PixelBuffer = new GLubyte[WIDTH * HEIGHT * 4];
 
@@ -39,6 +40,26 @@ static CanvasEngine tvgEngine = CanvasEngine::Sw;
 static unique_ptr<SwCanvas> swCanvas;
 static bool needInvalidation = false;
 static Shape* PathShape = nullptr;
+static int PathShapeCounter = 0;
+static int PathShapePoint[2] = {};
+
+void drawDemoShape() {
+    int x = WIDTH/2, y = HEIGHT/2;
+    auto shape = Shape::gen();
+    shape->moveTo(x, y);
+    shape->stroke(255, 255, 0, 255);
+    shape->stroke(4);
+    
+    for (int i = 0; i < 1000; i++) {
+        x += (rand() % 100) - 50;
+        y += (rand() % 100) - 50;
+        if (x > WIDTH || x < 0) x = WIDTH/2;
+        if (y > HEIGHT || y < 0) y = HEIGHT/2;
+        shape->lineTo(x, y);
+    }
+    
+    swCanvas->push(move(shape));
+}
 
 void createThorvgView(uint32_t threads) {
     // Initialize the engine
@@ -64,8 +85,10 @@ void createThorvgView(uint32_t threads) {
         swCanvas->push(move(picture));
     }
     
-    // Draw, will be synced later
-    swCanvas->draw();
+    //drawDemoShape(); // DEMO
+    
+    // Call for invalidation
+    needInvalidation = true;
 }
 
 #ifdef BENCHMARK
@@ -95,6 +118,9 @@ void display() {
     auto begin = chrono::steady_clock::now();
 #endif
     
+    // Draw, will be synced later
+    swCanvas->draw();
+    
     // Sync thorvg drawing
     swCanvas->sync();
     
@@ -113,8 +139,10 @@ void display() {
     
 #ifdef BENCHMARK
     auto end = chrono::steady_clock::now();
-    auto memory = getVmSizeValue();
-    cout << "Time difference = " << chrono::duration_cast<chrono::microseconds>(end - begin).count() << "[µs], Memory used = " << memory << endl;
+    //auto memory = getVmSizeValue();
+    //cout << "Time difference = " << chrono::duration_cast<chrono::microseconds>(end - begin).count() << "[µs]" /*<< ", Memory used = " << memory*/ << endl;
+    
+    cout << PathShapeCounter << "\t" << chrono::duration_cast<chrono::microseconds>(end - begin).count() << endl;
 #endif
 }
 
@@ -124,6 +152,7 @@ void mouse(int button, int state, int x, int y) {
     if (button == GLUT_LEFT_BUTTON) {
         if (state == GLUT_DOWN) {
             // Store begin mouse position
+            PathShapePoint[0] = x; PathShapePoint[1] = y;
             PathShape = Shape::gen().release();
             swCanvas->push(unique_ptr<Shape>(PathShape));
             PathShape->moveTo(x, y);
@@ -132,16 +161,26 @@ void mouse(int button, int state, int x, int y) {
         } else {
             // Reset rect
             PathShape = nullptr;
+            PathShapeCounter = 0;
         }
     }
 }
 void mouseMotion(int mx, int my) {
     // Draw line
-    PathShape->lineTo(mx, my);
-    swCanvas->update(PathShape);
-    
-    // Draw, will be synced later
-    swCanvas->draw();
+    if (PathShapeCounter < MAX_SINGLE_PATH_SHAPE_COUNT) {
+        PathShapePoint[0] = mx; PathShapePoint[1] = my;
+        PathShape->lineTo(mx, my);
+        swCanvas->update(PathShape);
+        PathShapeCounter += 1;
+    } else {
+        PathShape = Shape::gen().release();
+        swCanvas->push(unique_ptr<Shape>(PathShape));
+        PathShape->moveTo(PathShapePoint[0], PathShapePoint[1]);
+        PathShape->lineTo(mx, my);
+        PathShape->stroke(255, 0, 0, 255);
+        PathShape->stroke(4);
+        PathShapeCounter = 0;
+    }
     
     // Call for invalidation
     needInvalidation = true;
